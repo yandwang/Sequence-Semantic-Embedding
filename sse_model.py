@@ -400,7 +400,9 @@ class SSEModel(object):
      * loss (moving average)
 
     """
-        loss = tf.summary.scalar("loss (raw)", self.loss)
+        # his = tf.summary.histogram("weights", self)
+        # lr = tf.summary.scalar("lr", self.learning_rate)
+        loss = tf.summary.scalar("loss_raw", self.loss)
         return tf.summary.merge([loss])
 
     def get_predict_feed_dict(self, srcSeqs, tgtSeqs):
@@ -441,4 +443,15 @@ class SSEModel(object):
     """
         d = {}
         d[self._tgt_input_data] = np.array(tgtSeqs, dtype=np.int32)
+        return d
+
+    def hamming_distance(self):
+        """
+    Returns the hamming distance of two binary vectors
+
+            """
+        binary_source_embedding = tf.sign(self.source_embedding)
+        binary_target_embedding = tf.sign(self.target_embedding)
+        xor_src_tag = tf.logical_xor(binary_source_embedding, binary_target_embedding)
+        d = tf.count_nonzero(xor_src_tag)
         return d

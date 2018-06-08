@@ -63,13 +63,13 @@ tf.app.flags.DEFINE_integer("tgt_cell_size", 96, "LSTM cell size in target RNN m
 tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
 tf.app.flags.DEFINE_integer("vocab_size", 32000, "If no vocabulary file provided, will use this size to build vocabulary file from training data.")
 tf.app.flags.DEFINE_integer("max_seq_length", 50, "max number of words in each source or target sequence.")
-tf.app.flags.DEFINE_integer("max_epoc", 1, "max epoc number for training procedure.")
+tf.app.flags.DEFINE_integer("max_epoc", 20, "max epoc number for training procedure.")
 tf.app.flags.DEFINE_integer("predict_nbest", 10, "max top N for evaluation prediction.")
 tf.app.flags.DEFINE_string("task_type", 'classification',
                            "Type of tasks. We provide data, training receipe and service demos for four different type tasks:  classification, ranking, qna, crosslingual")
 
 tf.app.flags.DEFINE_string("data_dir", 'rawdata-classification', "Data directory")
-tf.app.flags.DEFINE_string('train_dir', './baseline/train', "Train directory")
+tf.app.flags.DEFINE_string('train_dir', './classification/train', "Train directory")
 tf.app.flags.DEFINE_string("model_dir", 'models-classification', "Trained model directory.")
 tf.app.flags.DEFINE_string("rawfilename", 'targetIDs', "raw target sequence file to be indexed")
 tf.app.flags.DEFINE_string("encodedIndexFile", 'targetEncodingIndex.tsv', "target sequece encoding index file.")
@@ -147,7 +147,9 @@ def train():
     model = create_model( sess, data.rawnegSetLen, data.vocab_size, False )
 
     #setup tensorboard logging
-    sw = tf.summary.FileWriter(logdir=FLAGS.model_dir, graph=sess.graph, flush_secs=120)
+    sw = tf.summary.FileWriter(logdir=FLAGS.train_dir, graph=sess.graph, flush_secs=120)
+    # summaries = tf.get_collection(tf.GraphKeys.SUMMARIES)
+    # summary_op_te = tf.summary.merge(summaries)
     summary_op = model.add_summaries()
 
     # This is the training loop.
@@ -156,12 +158,20 @@ def train():
     previous_accuracies = []
     for epoch in range( FLAGS.max_epoc ):
       epoc_start_Time = time.time()
+
+      for var in tf.trainable_variables():
+        tf.summary.histogram(var.op.name, var)
+      tf.summary.scalar("lr", model.learning_rate.eval())
+      tf.get_collection(tf.GraphKeys.SUMMARIES)
+      # Build the summary operation from the last tower summaries.
+      summary_op_te = tf.summary.merge_all()
+
       for batchId in range( epoc_steps ):
         start_time = time.time()
         source_inputs, tgt_inputs, labels = data.get_train_batch(FLAGS.batch_size)
         model.set_forward_only(False)
         d = model.get_train_feed_dict(source_inputs, tgt_inputs, labels)
-        ops = [model.train, summary_op, model.loss, model.train_acc ]
+        ops = [model.train, summary_op_te, model.loss, model.train_acc ]
         _, summary, step_loss, step_train_acc = sess.run(ops, feed_dict=d)
         step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
         loss += step_loss / FLAGS.steps_per_checkpoint
@@ -169,18 +179,16 @@ def train():
         current_step += 1
 
         # Once in a while, we save checkpoint, print statistics, and run evals.
-        # if current_step % FLAGS.steps_per_checkpoint == 0:
-        if current_step % 1 == 0:
+        if current_step % FLAGS.steps_per_checkpoint == 0:
           print ("global epoc: %.3f, global step %d, learning rate %.4f step-time:%.2f loss:%.4f train_binary_acc:%.4f " %
-                 ( float(model.global_step.eval())/ float(epoc_steps), model.global_step.eval(), model.learning_rate.eval(),
-                             step_time, step_loss, train_acc ))
-          tf.summary.scalar('learning_rate', model.learning_rate.eval())
+                 (float(model.global_step.eval())/float(epoc_steps), model.global_step.eval(), model.learning_rate.eval(),
+                             step_time, step_loss, train_acc))
+
+          sw.add_summary(summary, current_step)
+
           checkpoint_path = os.path.join(FLAGS.model_dir, "SSE-LSTM.ckpt")
           acc_sum = tf.Summary(value=[tf.Summary.Value(tag="train_binary_acc", simple_value=train_acc)])
           sw.add_summary(acc_sum, current_step)
-          # sw.add_summary(summary, current_step)
-          # sw.add_summary(step_loss, current_step)
-          # sw.add_summary(step_train_acc, current_step)
 
           # #########debugging##########
           # model.set_forward_only(True)
@@ -196,6 +204,7 @@ def train():
           # Decrease learning rate if no improvement was seen over last 3 times.
           if len(previous_accuracies) > 3 and train_acc < min(previous_accuracies[-2:]):
             sess.run(model.learning_rate_decay_op)
+
           previous_accuracies.append(train_acc)
           tf.summary.scalar('training_accuracy', train_acc)
           # save currently best-ever model
@@ -214,20 +223,6 @@ def train():
 
           # reset current checkpoint step statistics
           step_time, loss, train_acc = 0.0, 0.0, 0.0
-
-        # for var in tf.trainable_variables():
-        #   tf.summary.histogram(var.op.name, var)
-        # summaries = tf.get_collection(tf.GraphKeys.SUMMARIES)
-        # # Build the summary operation from the last tower summaries.
-        # summary_op_te = tf.summary.merge(summaries)
-        #
-        # summary_writer = tf.summary.FileWriter(
-        #   FLAGS.train_dir,
-        #   graph=tf.get_default_graph())
-        # # if epoch % 1 == 0:
-        # summary_str = sess.run(summary_op_te)
-        # summary_writer.add_summary(summary_str, batchId)
-
 
       epoc_train_time = time.time() - epoc_start_Time
       print('\n\n\nepoch# %d  took %f hours' % ( epoch , epoc_train_time / (60.0 * 60) ) )
