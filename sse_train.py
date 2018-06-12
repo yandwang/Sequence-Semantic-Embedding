@@ -63,13 +63,13 @@ tf.app.flags.DEFINE_integer("tgt_cell_size", 96, "LSTM cell size in target RNN m
 tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
 tf.app.flags.DEFINE_integer("vocab_size", 32000, "If no vocabulary file provided, will use this size to build vocabulary file from training data.")
 tf.app.flags.DEFINE_integer("max_seq_length", 50, "max number of words in each source or target sequence.")
-tf.app.flags.DEFINE_integer("max_epoc", 20, "max epoc number for training procedure.")
-tf.app.flags.DEFINE_integer("predict_nbest", 10, "max top N for evaluation prediction.")
+tf.app.flags.DEFINE_integer("max_epoc", 10, "max epoc number for training procedure.")
+tf.app.flags.DEFINE_integer("predict_nbest", 1, "max top N for evaluation prediction.")
 tf.app.flags.DEFINE_string("task_type", 'classification',
                            "Type of tasks. We provide data, training receipe and service demos for four different type tasks:  classification, ranking, qna, crosslingual")
 
 tf.app.flags.DEFINE_string("data_dir", 'rawdata-classification', "Data directory")
-tf.app.flags.DEFINE_string('train_dir', './classification/train', "Train directory")
+tf.app.flags.DEFINE_string('train_dir', './classification/train/top1_epoch10', "Train directory")
 tf.app.flags.DEFINE_string("model_dir", 'models-classification', "Trained model directory.")
 tf.app.flags.DEFINE_string("rawfilename", 'targetIDs', "raw target sequence file to be indexed")
 tf.app.flags.DEFINE_string("encodedIndexFile", 'targetEncodingIndex.tsv', "target sequece encoding index file.")
@@ -138,7 +138,7 @@ def train():
       os.makedirs(d)
 
   data = Data(FLAGS.model_dir,FLAGS.data_dir, FLAGS.vocab_size, FLAGS.max_seq_length)
-  epoc_steps = len(data.rawTrainPosCorpus) /  FLAGS.batch_size
+  epoc_steps = len(data.rawTrainPosCorpus) //  FLAGS.batch_size
 
   print( "Training Data: %d total positive samples, each epoch need %d steps" % (len(data.rawTrainPosCorpus), epoc_steps ) )
 
