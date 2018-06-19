@@ -77,6 +77,7 @@ from builtins import zip
 from builtins import range
 from builtins import object
 import random
+import os
 
 import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
@@ -124,17 +125,44 @@ class SSEModel(object):
             tf.maximum(self.learning_rate * float(modelParams['learning_rate_decay_factor']), 1e-4))
         self.global_step = tf.Variable(0, name="global_step", trainable=False)
         self.targetSpaceSize = int(modelParams['targetSpaceSize'])
+        self.loss_type = modelParams['loss_type']
+        self.lr = modelParams['learning_rate']
+        self.q_lambda = modelParams['q_lambda']
+        self.alpha = modelParams['alpha']
+        self.bias = modelParams['bias']
+        self.gamma = modelParams['gamma']
 
         # setup basic model cell type to be LSTM or GRU or CNN
         # TODO: enhence for CNN basic unit later
 
         # Setup Source internal RNN Cell in tensoflow graph
         self._create_embedders()
-        self._def_loss()
+
+        with tf.name_scope('stage'):
+            # 0 for training, 1 for validation
+            self.stage = tf.placeholder_with_default(tf.constant(0), [])
+
+        self.train_op = self._def_loss()
+
+        ### Setup session
+        print ("launching session")
+        configProto = tf.ConfigProto()
+        configProto.gpu_options.allow_growth = True
+        configProto.allow_soft_placement = True
+        self.sess = tf.Session(config=configProto)
+
+        self.global_step = tf.Variable(0, trainable=False)
+        # self.train_op = self.apply_loss_function(self.global_step)
+        self.sess.run(tf.global_variables_initializer())
+
         self._def_optimize()
         self._def_predict()
 
         self.saver = tf.train.Saver(tf.global_variables(), max_to_keep=20)
+
+        ### Initialize setting
+        print ("initializing")
+        np.set_printoptions(precision=4)
 
     @staticmethod
     def _last_relevant(output, length):
@@ -152,6 +180,7 @@ class SSEModel(object):
         self._src_input_data = tf.placeholder(tf.int32, [None, self.MAX_SEQ_LENGTH], name='source_sequence')
         self._tgt_input_data = tf.placeholder(tf.int32, [None, self.MAX_SEQ_LENGTH], name='target_sequence')
         self._labels = tf.placeholder(tf.float32, [None], name='targetSpace_labels')
+
 
         # create word embedding vectors
         # note: both source and target sequence share same vocabulary and word embeddings
@@ -245,9 +274,14 @@ class SSEModel(object):
             src_output, _ = tf.contrib.rnn.static_rnn(src_cell, tf.unstack(self.src_input_distributed, axis=1),
                                                       dtype=tf.float32)
             src_last_output = src_output[-1]
+
             self.src_M = tf.get_variable('src_M', shape=[self.src_cell_size, self.seq_embed_size],
                                          initializer=tf.truncated_normal_initializer())
             self.src_seq_embedding = tf.matmul(src_last_output, self.src_M)
+
+            ## Added by Yandan
+            self.img_last_layer_src = self.src_seq_embedding
+
         # Build target encoder
         with tf.variable_scope('target_encoder'):
             tgt_cell = tf.contrib.rnn.BasicLSTMCell(num_units=self.tgt_cell_size)
@@ -258,6 +292,9 @@ class SSEModel(object):
             self.tgt_M = tf.get_variable('tgt_M', shape=[self.tgt_cell_size, self.seq_embed_size],
                                          initializer=tf.truncated_normal_initializer())
             self.tgt_seq_embedding = tf.matmul(tgt_last_output, self.tgt_M)
+
+            ## Added by Yandan
+            self.img_last_layer_tgt = self.tgt_seq_embedding
 
     def _shared_encoder_network(self):
         # config SSE network to be shared encoder mode
@@ -305,10 +342,73 @@ class SSEModel(object):
             # basic bianry logistic loss, treat pos and neg the same weight
             # self.loss = tf.reduce_mean( tf.nn.sigmoid_cross_entropy_with_logits( logits=self.binarylogit, labels= self._labels) )
             # weighted loss, to treat pos/neg loss with different weight
-            self.loss = tf.reduce_mean(
-                tf.nn.weighted_cross_entropy_with_logits(logits=self.binarylogit, targets=self._labels, pos_weight=1.0))
+            # #self.loss = tf.reduce_mean(
+            ##   tf.nn.weighted_cross_entropy_with_logits(logits=self.binarylogit, targets=self._labels, pos_weight=1.0))
             # self.loss = tf.Print(self.loss, [self.loss], summarize=6, message='loss')
             # self.loss = tf.reduce_mean(tf.multiply(self._labels, 1.0 - tf.sigmoid(self.binarylogit)))   +  tf.reduce_mean(tf.multiply(1 - self._labels, tf.sigmoid(self.binarylogit) ))
+
+            # Cauchy cross-entropy loss
+            if self.loss_type == 'cross_entropy':
+                self.cos_loss = self.cross_entropy(self.img_last_layer_src, self.img_last_layer_tgt, self._labels, self.alpha, False, False,
+                                                   self.bias)
+            elif self.loss_type == 'normed_cross_entropy':
+                self.cos_loss = self.cross_entropy(self.img_last_layer_src, self.img_last_layer_tgt, self._labels, self.alpha, True, False,
+                                                   self.bias)
+            elif self.loss_type == 'pruned_cross_entropy':
+                self.cos_loss = self.cross_entropy(self.img_last_layer_src, self.img_last_layer_tgt, self._labels, self.alpha, False, True,
+                                                   self.bias)
+            elif self.loss_type == 'pruned_normed_cross_entropy':
+                self.cos_loss = self.cross_entropy(self.img_last_layer_src, self.img_last_layer_tgt, self._labels, self.alpha, True, True,
+                                                   self.bias)
+
+            # Cauchy quantization loss
+            self.q_loss_img = tf.reduce_mean(tf.square(tf.subtract(tf.abs(self.img_last_layer_src), tf.constant(1.0))))
+            self.q_loss = self.q_lambda * self.q_loss_img
+
+            d_src_1 = tf.linalg.norm(tf.abs(self.src_seq_embedding) - 1.0)
+            self.Cauchy_quan_img = tf.reduce_sum(tf.log(tf.add(1.0, tf.div(d_src_1, self.gamma))))
+            self.Cauchy_quan_loss = self.q_lambda * self.Cauchy_quan_loss
+
+            self.loss = self.cos_loss + self.Cauchy_quan_loss
+
+            # Total loss
+            # self.loss = self.cos_loss + self.q_loss
+
+            # ### Last layer has a 10 times learning rate
+            # lr = tf.train.exponential_decay(self.lr, self.global_step, self.decay_step, self.lr, staircase=True)
+            # opt = tf.train.MomentumOptimizer(learning_rate=lr, momentum=0.9)
+            # grads_and_vars = opt.compute_gradients(self.loss, self.train_layers + self.train_last_layer)
+            # fcgrad, _ = grads_and_vars[-2]
+            # fbgrad, _ = grads_and_vars[-1]
+            #
+            # # for debug
+            # self.grads_and_vars = grads_and_vars
+            # tf.summary.scalar('loss', self.loss)
+            # tf.summary.scalar('cos_loss', self.cos_loss)
+            # tf.summary.scalar('q_loss', self.q_loss)
+            # tf.summary.scalar('lr', lr)
+            # self.merged = tf.summary.merge_all()
+            #
+            # if self.finetune_all:
+            #     return opt.apply_gradients([(grads_and_vars[0][0], self.train_layers[0]),
+            #                                 (grads_and_vars[1][0] * 2, self.train_layers[1]),
+            #                                 (grads_and_vars[2][0], self.train_layers[2]),
+            #                                 (grads_and_vars[3][0] * 2, self.train_layers[3]),
+            #                                 (grads_and_vars[4][0], self.train_layers[4]),
+            #                                 (grads_and_vars[5][0] * 2, self.train_layers[5]),
+            #                                 (grads_and_vars[6][0], self.train_layers[6]),
+            #                                 (grads_and_vars[7][0] * 2, self.train_layers[7]),
+            #                                 (grads_and_vars[8][0], self.train_layers[8]),
+            #                                 (grads_and_vars[9][0] * 2, self.train_layers[9]),
+            #                                 (grads_and_vars[10][0], self.train_layers[10]),
+            #                                 (grads_and_vars[11][0] * 2, self.train_layers[11]),
+            #                                 (grads_and_vars[12][0], self.train_layers[12]),
+            #                                 (grads_and_vars[13][0] * 2, self.train_layers[13]),
+            #                                 (fcgrad * 10, self.train_last_layer[0]),
+            #                                 (fbgrad * 20, self.train_last_layer[1])], global_step=global_step)
+            # else:
+            #     return opt.apply_gradients([(fcgrad * 10, self.train_last_layer[0]),
+            #                                 (fbgrad * 20, self.train_last_layer[1])], global_step=global_step)
 
             # compute the binary training accuracy
             self.train_acc = tf.reduce_mean(
@@ -346,104 +446,77 @@ class SSEModel(object):
         #   self.train_acc = tf.reduce_mean(tf.multiply(self._labels, tf.floor(tf.sigmoid(self.binarylogit) + 0.2) ))   +  tf.reduce_mean(tf.multiply(1 - self._labels, tf.floor(1.2 - tf.sigmoid(self.binarylogit))) )
 
     # Cross_entropy for deep hashing
-    def cross_entropy(self, u, label_u, alpha=0.5, normed=False, pruned=True, bias=0.0):
+    def cross_entropy(self, img_last_layer_src, img_last_layer_tgt, label_u, alpha=0.5, normed=False, pruned=True, bias=0.0):
 
-        label_ip = tf.cast(tf.matmul(label_u, tf.transpose(label_u)), tf.float32)
-        s = tf.clip_by_value(label_ip, 0.0, 1.0)
+        # compute normalized Euclidean distance between src_seq_embedding and tgt_seq_embedding
+        seq_shape = tf.shape(img_last_layer_src)
+        K = seq_shape[0]
+        euc_norm = tf.norm(self.norm_src_seq_embedding - self.norm_tgt_seq_embedding, ord='euclidean')
+        d_src_tgt = 0.25*tf.multiply(tf.cast(K, tf.float32), euc_norm)
 
-        # compute balance param
-        # s_t \in {-1, 1}
-        s_t = tf.multiply(tf.add(s, tf.constant(-0.5)), tf.constant(2.0))
-        sum_1 = tf.reduce_sum(s)
-        sum_all = tf.reduce_sum(tf.abs(s_t))
+        # compute Cauchy cross-entropy loss
+        log1 = tf.log(tf.div(d_src_tgt, self.gamma))
+        log1_s = tf.multiply(label_u, log1)
+        log2 = tf.log(1.0+tf.div(self.gamma, d_src_tgt))
+
+        sum1 = tf.reduce_sum(label_u)
+        balance_p = tf.div(tf.cast(K, tf.float32), sum1)
+        balance_n = tf.div(tf.cast(K, tf.float32), tf.cast(K, tf.float32)-sum1)
+
+        balance_par = label_u[0]
+
+        # for i in K:
+        #     if label_u[i] == 0:
+        #         balance_par.append(balance_n)
+        #     else:
+        #         balance_par.append(balance_p)
+
+        Cauchy_entropy = tf.reduce_sum(tf.multiply(balance_par, tf.add(log1_s, log2)))
+        return Cauchy_entropy
+
+        # # label_ip = tf.cast(tf.matmul(label_u, tf.transpose(label_u)), tf.float32)
+        # # s = tf.clip_by_value(label_ip, 0.0, 1.0)
+        # s = tf.clip_by_value(label_u, 0.0, 1.0)
+        #
+        # # compute balance param
+        # # s_t \in {-1, 1}
+        # s_t = tf.multiply(tf.add(s, tf.constant(-0.5)), tf.constant(2.0))
+        # sum_1 = tf.reduce_sum(s)
+        # sum_all = tf.reduce_sum(tf.abs(s_t))
         balance_param = tf.add(tf.abs(tf.add(s, tf.constant(-1.0))), tf.multiply(tf.div(sum_all, sum_1), s))
-
-        if normed and pruned:
-            # compute cos(u_i, u_j)
-            ip_1 = tf.matmul(u, tf.transpose(u))
-            def reduce_shaper(t):
-                return tf.reshape(tf.reduce_sum(t, 1), [tf.shape(t)[0], 1])
-            mod_1 = tf.sqrt(tf.matmul(reduce_shaper(tf.square(u)), reduce_shaper(tf.square(u)), transpose_b=True))
-            cos = tf.constant(np.float32(self.output_dim)) / 2.0 * (1.0 - tf.div(ip_1, mod_1))
-
-            # ip = gamma / (gamma^2 + Dim / 2(1 - cos(u_i, u_j))))
-            ip = tf.constant(self.gamma) / (cos + tf.constant(self.gamma)*tf.constant(self.gamma))
-        elif normed:
-            #ip = tf.clip_by_value(tf.matmul(u, tf.transpose(u)), -1.5e1, 1.5e1)
-            ip_1 = tf.matmul(u, tf.transpose(u))
-            def reduce_shaper(t):
-                return tf.reshape(tf.reduce_sum(t, 1), [tf.shape(t)[0], 1])
-            mod_1 = tf.sqrt(tf.matmul(reduce_shaper(tf.square(u)), reduce_shaper(tf.square(u)), transpose_b=True))
-            ip = tf.div(ip_1, mod_1)
-        elif pruned:
-            # ip = b / (1 + ||u_i - u_j||^2)
-            # |u_i-u_j|^2 = r - 2 u u' + r'
-            r = tf.reduce_sum(u*u, 1)
-            # turn r into column vector
-            r = tf.reshape(r, [-1, 1])
-            ip = r - 2*tf.matmul(u, tf.transpose(u)) + tf.transpose(r)
-
-            ip = self.gamma / (ip + self.gamma ** 2)
-        else:
-            ip = tf.clip_by_value(tf.matmul(u, tf.transpose(u)), -1.5e1, 1.5e1)
-        ones = tf.ones([tf.shape(u)[0], tf.shape(u)[0]])
-        ip_new = alpha * ip + bias
-        return tf.reduce_mean(tf.multiply(tf.log(ones + tf.exp(ip_new)) - s * (ip_new), balance_param))
-
-    # Loss for deep hashing
-    def apply_loss_function(self, global_step):
-        # Cauchy cross-entropy loss
-        if self.loss_type == 'cross_entropy':
-            self.cos_loss = self.cross_entropy(self.img_last_layer, self.img_label, self.alpha, False, False, self.bias)
-        elif self.loss_type == 'normed_cross_entropy':
-            self.cos_loss = self.cross_entropy(self.img_last_layer, self.img_label, self.alpha, True, False, self.bias)
-        elif self.loss_type == 'pruned_cross_entropy':
-            self.cos_loss = self.cross_entropy(self.img_last_layer, self.img_label, self.alpha, False, True, self.bias)
-        elif self.loss_type == 'pruned_normed_cross_entropy':
-            self.cos_loss = self.cross_entropy(self.img_last_layer, self.img_label, self.alpha, True, True, self.bias)
-
-        # Cauchy quantization loss
-        self.q_loss_img = tf.reduce_mean(tf.square(tf.subtract(tf.abs(self.img_last_layer), tf.constant(1.0))))
-        self.q_loss = self.q_lambda * self.q_loss_img
-
-        # Total loss
-        self.loss = self.cos_loss + self.q_loss
-
-        ### Last layer has a 10 times learning rate
-        lr = tf.train.exponential_decay(self.lr, global_step, self.decay_step, self.lr, staircase=True)
-        opt = tf.train.MomentumOptimizer(learning_rate=lr, momentum=0.9)
-        grads_and_vars = opt.compute_gradients(self.loss, self.train_layers + self.train_last_layer)
-        fcgrad, _ = grads_and_vars[-2]
-        fbgrad, _ = grads_and_vars[-1]
-
-        # for debug
-        self.grads_and_vars = grads_and_vars
-        tf.summary.scalar('loss', self.loss)
-        tf.summary.scalar('cos_loss', self.cos_loss)
-        tf.summary.scalar('q_loss', self.q_loss)
-        tf.summary.scalar('lr', lr)
-        self.merged = tf.summary.merge_all()
-
-        if self.finetune_all:
-            return opt.apply_gradients([(grads_and_vars[0][0], self.train_layers[0]),
-                                        (grads_and_vars[1][0] * 2, self.train_layers[1]),
-                                        (grads_and_vars[2][0], self.train_layers[2]),
-                                        (grads_and_vars[3][0] * 2, self.train_layers[3]),
-                                        (grads_and_vars[4][0], self.train_layers[4]),
-                                        (grads_and_vars[5][0] * 2, self.train_layers[5]),
-                                        (grads_and_vars[6][0], self.train_layers[6]),
-                                        (grads_and_vars[7][0] * 2, self.train_layers[7]),
-                                        (grads_and_vars[8][0], self.train_layers[8]),
-                                        (grads_and_vars[9][0] * 2, self.train_layers[9]),
-                                        (grads_and_vars[10][0], self.train_layers[10]),
-                                        (grads_and_vars[11][0] * 2, self.train_layers[11]),
-                                        (grads_and_vars[12][0], self.train_layers[12]),
-                                        (grads_and_vars[13][0] * 2, self.train_layers[13]),
-                                        (fcgrad * 10, self.train_last_layer[0]),
-                                        (fbgrad * 20, self.train_last_layer[1])], global_step=global_step)
-        else:
-            return opt.apply_gradients([(fcgrad * 10, self.train_last_layer[0]),
-                                        (fbgrad * 20, self.train_last_layer[1])], global_step=global_step)
+        #
+        # if normed and pruned:
+        #     # compute cos(u_i, u_j)
+        #     ip_1 = tf.matmul(u, tf.transpose(u))
+        #     def reduce_shaper(t):
+        #         return tf.reshape(tf.reduce_sum(t, 1), [tf.shape(t)[0], 1])
+        #     mod_1 = tf.sqrt(tf.matmul(reduce_shaper(tf.square(u)), reduce_shaper(tf.square(u)), transpose_b=True))
+        #     cos = tf.constant(np.float32(self.output_dim)) / 2.0 * (1.0 - tf.div(ip_1, mod_1))
+        #
+        #     # ip = gamma / (gamma^2 + Dim / 2(1 - cos(u_i, u_j))))
+        #     ip = tf.constant(self.gamma) / (cos + tf.constant(self.gamma)*tf.constant(self.gamma))
+        # elif normed:
+        #     #ip = tf.clip_by_value(tf.matmul(u, tf.transpose(u)), -1.5e1, 1.5e1)
+        #     ip_1 = tf.matmul(u, tf.transpose(u))
+        #     def reduce_shaper(t):
+        #         return tf.reshape(tf.reduce_sum(t, 1), [tf.shape(t)[0], 1])
+        #     mod_1 = tf.sqrt(tf.matmul(reduce_shaper(tf.square(u)), reduce_shaper(tf.square(u)), transpose_b=True))
+        #     ip = tf.div(ip_1, mod_1)
+        # elif pruned:
+        #     # ip = b / (1 + ||u_i - u_j||^2)
+        #     # |u_i-u_j|^2 = r - 2 u u' + r'
+        #     r = tf.reduce_sum(u*u, 1)
+        #     # turn r into column vector
+        #     r = tf.reshape(r, [-1, 1])
+        #     ip = r - 2*tf.matmul(u, tf.transpose(u)) + tf.transpose(r)
+        #
+        #     ip = self.gamma / (ip + self.gamma ** 2)
+        #
+        # else:
+        #     ip = tf.clip_by_value(tf.matmul(u, tf.transpose(u)), -1.5e1, 1.5e1)
+        # ones = tf.ones([tf.shape(u)[0], tf.shape(u)[0]])
+        # ip_new = alpha * ip + bias
+        # return tf.reduce_mean(tf.multiply(tf.log(ones + tf.exp(ip_new)) - s * (ip_new), balance_param))
 
     def set_top_n(self, top_n):
         self.TOP_N = top_n
@@ -502,8 +575,11 @@ class SSEModel(object):
     """
         # his = tf.summary.histogram("weights", self)
         # lr = tf.summary.scalar("lr", self.learning_rate)
-        loss = tf.summary.scalar("loss_raw", self.loss)
-        return tf.summary.merge([loss])
+        Cauchy_cross_entropy =tf.summary.scalar('Cauchy_cross_entropy', self.cos_loss)
+        Cauchy_quan_loss = tf.summary.scalar('Cauchy_quan_loss', self.Cauchy_quan_loss)
+        loss = tf.summary.scalar('Total_loss', self.loss)
+        # loss = tf.summary.scalar("loss_raw", self.loss)
+        return tf.summary.merge([Cauchy_cross_entropy, Cauchy_quan_loss, loss])
 
     def get_predict_feed_dict(self, srcSeqs, tgtSeqs):
         """

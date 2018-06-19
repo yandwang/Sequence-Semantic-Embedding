@@ -50,6 +50,14 @@ import sse_index
 import text_encoder
 from data import *
 
+
+tf.app.flags.DEFINE_string("loss_type", 'pruned_cross_entropy', "Loss type.")
+tf.app.flags.DEFINE_float("q_lambda", 0, "q_lambda")
+tf.app.flags.DEFINE_float("alpha", .5, "alpha")
+tf.app.flags.DEFINE_float("bias", 0.0, "bias")
+tf.app.flags.DEFINE_float("gamma", 20, "gamma")
+tf.app.flags.DEFINE_integer("label_dims", 571, "label_dims of eBay CSA dataset")
+
 tf.app.flags.DEFINE_float("learning_rate", 0.01, "Learning rate.")
 tf.app.flags.DEFINE_float("learning_rate_decay_factor", 0.99,
                           "Learning rate decays by this much.")
@@ -64,13 +72,12 @@ tf.app.flags.DEFINE_integer("num_layers", 1, "Number of layers in the model.")
 tf.app.flags.DEFINE_integer("vocab_size", 32000, "If no vocabulary file provided, will use this size to build vocabulary file from training data.")
 tf.app.flags.DEFINE_integer("max_seq_length", 50, "max number of words in each source or target sequence.")
 tf.app.flags.DEFINE_integer("max_epoc", 10, "max epoc number for training procedure.")
-tf.app.flags.DEFINE_integer("predict_nbest", 1, "max top N for evaluation prediction.")
+tf.app.flags.DEFINE_integer("predict_nbest", 10, "max top N for evaluation prediction.")
 tf.app.flags.DEFINE_string("task_type", 'classification',
                            "Type of tasks. We provide data, training receipe and service demos for four different type tasks:  classification, ranking, qna, crosslingual")
 
 tf.app.flags.DEFINE_string("data_dir", 'rawdata-classification', "Data directory")
-tf.app.flags.DEFINE_string('train_dir', './classification/train/top1_epoch10', "Train directory")
-tf.app.flags.DEFINE_string("model_dir", 'models-classification', "Trained model directory.")
+tf.app.flags.DEFINE_string("model_dir", 'models-classification/top10_epoch10', "Trained model directory.")
 tf.app.flags.DEFINE_string("rawfilename", 'targetIDs', "raw target sequence file to be indexed")
 tf.app.flags.DEFINE_string("encodedIndexFile", 'targetEncodingIndex.tsv', "target sequece encoding index file.")
 
@@ -94,7 +101,10 @@ def create_model(session, targetSpaceSize, vocabsize, forward_only):
                  'learning_rate': FLAGS.learning_rate, 'learning_rate_decay_factor': FLAGS.learning_rate_decay_factor,
                  'src_cell_size':FLAGS.src_cell_size, 'tgt_cell_size':FLAGS.tgt_cell_size,
                  'network_mode': FLAGS.network_mode, 'predict_nbest':FLAGS.predict_nbest,
-                 'targetSpaceSize':targetSpaceSize, 'forward_only': forward_only}
+                 'targetSpaceSize':targetSpaceSize, 'forward_only': forward_only,
+                 'loss_type':FLAGS.loss_type, 'q_lambda':FLAGS.q_lambda,
+                 'alpha': FLAGS.alpha, 'bias': FLAGS.bias, 'gamma': FLAGS.gamma,
+                 'label_dims': FLAGS.label_dims}
 
   data_utils.save_model_configs(FLAGS.model_dir, modelParams)
 
@@ -147,7 +157,7 @@ def train():
     model = create_model( sess, data.rawnegSetLen, data.vocab_size, False )
 
     #setup tensorboard logging
-    sw = tf.summary.FileWriter(logdir=FLAGS.train_dir, graph=sess.graph, flush_secs=120)
+    sw = tf.summary.FileWriter(logdir=FLAGS.model_dir, graph=sess.graph, flush_secs=120)
     # summaries = tf.get_collection(tf.GraphKeys.SUMMARIES)
     # summary_op_te = tf.summary.merge(summaries)
     summary_op = model.add_summaries()
@@ -171,7 +181,7 @@ def train():
         source_inputs, tgt_inputs, labels = data.get_train_batch(FLAGS.batch_size)
         model.set_forward_only(False)
         d = model.get_train_feed_dict(source_inputs, tgt_inputs, labels)
-        ops = [model.train, summary_op_te, model.loss, model.train_acc ]
+        ops = [model.train, summary_op_te, model.loss, model.train_acc]
         _, summary, step_loss, step_train_acc = sess.run(ops, feed_dict=d)
         step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
         loss += step_loss / FLAGS.steps_per_checkpoint
