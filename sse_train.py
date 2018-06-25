@@ -251,15 +251,23 @@ def train():
         print('So far best ever model training binary accuracy is: %.4f ' % max(previous_accuracies) )
 
 
-def main(_):
+def main():
+  global FLAGS
+
+  if 'KRYLOV_DATA_DIR' not in os.environ:
+    os.environ['KRYLOV_DATA_DIR'] = ''
+  if 'KRYLOV_WF_PRINCIPAL' not in os.environ:
+    os.environ['KRYLOV_WF_PRINCIPAL'] = ''
+
+  tf.app.flags.DEFINE_string("data_dir", os.path.join(os.environ['KRYLOV_DATA_DIR'], os.environ['KRYLOV_WF_PRINCIPAL'],
+                                                      'rawdata-classification'), "Data directory")
 
   if not FLAGS.data_dir or not FLAGS.model_dir:
     print("--data_dir and --model_dir must be specified.")
     sys.exit(1)
 
-
-  run_id = 'BatchSize' + str(FLAGS.batch_size)  + '.EmbedSize' + str(FLAGS.embedding_size) + \
-            '.EncodeSize' + str(FLAGS.encoding_size) + '.SrcCell' + str(FLAGS.src_cell_size) + \
+  run_id = 'BatchSize' + str(FLAGS.batch_size) + '.EmbedSize' + str(FLAGS.embedding_size) + \
+           '.EncodeSize' + str(FLAGS.encoding_size) + '.SrcCell' + str(FLAGS.src_cell_size) + \
            '.TgtCell' + str(FLAGS.tgt_cell_size) + '.SrcCell' + str(FLAGS.src_cell_size) + \
            '.' + str(FLAGS.network_mode) + \
            '.' + str(time.time())[-5:]
