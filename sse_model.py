@@ -280,8 +280,8 @@ class SSEModel(object):
             self.src_seq_embedding = tf.matmul(src_last_output, self.src_M)
 
             # squash the continuous code to be within [−1, 1]
-            self.src_seq_embedding = tf.tanh(self.src_seq_embedding)
-
+            self.src_seq_embedding = tf.sign(tf.tanh(self.src_seq_embedding))
+            
             ## Added by Yandan
             self.img_last_layer_src = self.src_seq_embedding
 
@@ -297,7 +297,7 @@ class SSEModel(object):
             self.tgt_seq_embedding = tf.matmul(tgt_last_output, self.tgt_M)
 
             # squash the continuous code to be within [−1, 1]
-            self.tgt_seq_embedding = tf.tanh(self.tgt_seq_embedding)
+            self.tgt_seq_embedding = tf.sign(tf.tanh(self.tgt_seq_embedding))
 
             ## Added by Yandan
             self.img_last_layer_tgt = self.tgt_seq_embedding

@@ -81,7 +81,7 @@ tf.app.flags.DEFINE_string("task_type", 'classification',
 
 tf.app.flags.DEFINE_string("data_dir", 'rawdata-classification', "Data directory")
 
-tf.app.flags.DEFINE_string("model_dir", 'models-classification', "Trained model directory.")
+tf.app.flags.DEFINE_string("model_dir", 'models-classification/binary_deephash_baseline', "Trained model directory.")
 tf.app.flags.DEFINE_string("rawfilename", 'targetIDs', "raw target sequence file to be indexed")
 tf.app.flags.DEFINE_string("encodedIndexFile", 'targetEncodingIndex.tsv', "target sequece encoding index file.")
 

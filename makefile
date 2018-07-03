@@ -1,4 +1,4 @@
-device=0
+device=1
 lr=0.1
 
 train-classification:
