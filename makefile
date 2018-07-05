@@ -1,8 +1,12 @@
-device=1
+device=0
 lr=0.1
+model_dir='models-classification/binary_deephash_baseline_lr_0.1_q_0_gamma_35'
+q=0
+gamma=35
+epoc=5
 
 train-classification:
-	python sse_train.py --task_type=classification --data_dir=rawdata-classification --model_dir=models-classification   --device=$(device) --learning_rate=$(lr)  --max_epoc=50 --steps_per_checkpoint=200
+	python sse_train.py --task_type=classification --data_dir=rawdata-classification --model_dir=$(model_dir)   --device=$(device) --learning_rate=$(lr)  --max_epoc=$(epoc) --steps_per_checkpoint=200 --q_lambda=$(q) --gamma=$(gamma)
 
 index-classification:
 	python sse_index.py  --idx_model_dir=models-classification --idx_rawfilename=targetIDs  --idx_encodedIndexFile=targetEncodingIndex.tsv

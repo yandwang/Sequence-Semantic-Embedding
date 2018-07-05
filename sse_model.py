@@ -280,10 +280,11 @@ class SSEModel(object):
             self.src_seq_embedding = tf.matmul(src_last_output, self.src_M)
 
             # squash the continuous code to be within [−1, 1]
-            self.src_seq_embedding = tf.sign(tf.tanh(self.src_seq_embedding))
+            self.src_seq_embedding = tf.tanh(self.src_seq_embedding)
             
             ## Added by Yandan
             self.img_last_layer_src = self.src_seq_embedding
+            self.src_seq_embedding = tf.sign(self.src_seq_embedding)
 
         # Build target encoder
         with tf.variable_scope('target_encoder'):
@@ -297,10 +298,11 @@ class SSEModel(object):
             self.tgt_seq_embedding = tf.matmul(tgt_last_output, self.tgt_M)
 
             # squash the continuous code to be within [−1, 1]
-            self.tgt_seq_embedding = tf.sign(tf.tanh(self.tgt_seq_embedding))
+            self.tgt_seq_embedding = tf.tanh(self.tgt_seq_embedding)
 
             ## Added by Yandan
             self.img_last_layer_tgt = self.tgt_seq_embedding
+            self.tgt_seq_embedding = tf.sign(self.tgt_seq_embedding)
 
     def _shared_encoder_network(self):
         # config SSE network to be shared encoder mode
@@ -326,9 +328,9 @@ class SSEModel(object):
     def _def_loss(self):
         # compute src / tgt similarity
         with tf.variable_scope('similarity'):
-            self.norm_src_seq_embedding = tf.nn.l2_normalize(self.src_seq_embedding, dim=-1)
-            self.norm_tgt_seq_embedding = tf.nn.l2_normalize(self.tgt_seq_embedding, dim=-1)
-
+            self.norm_src_seq_embedding = tf.nn.l2_normalize(self.img_last_layer_src, dim=-1)
+            self.norm_tgt_seq_embedding = tf.nn.l2_normalize(self.img_last_layer_tgt, dim=-1)
+            
             # this similarity tensor is used for prediction, tensor shape is (src_batch_size * target_space_size )
             # self.similarity = tf.matmul( self.norm_src_seq_embedding, self.norm_tgt_seq_embedding, transpose_b=True)
             self.similarity = tf.matmul(self.src_seq_embedding, self.tgt_seq_embedding, transpose_b=True)
