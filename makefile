@@ -1,7 +1,7 @@
 device=0
-lr=0.1
-model_dir='models-classification/binary_deephash_baseline_lr_0.1_q_0_gamma_35'
-q=0
+lr=0.5
+model_dir='models-classification/binary_deephash_baseline_lr_0.5_q_0.2_gamma_35'
+q=0.2
 gamma=35
 epoc=5
 
