@@ -343,6 +343,9 @@ class SSEModel(object):
             # self.binarylogit =  tf.reduce_sum( tf.multiply(self.norm_src_seq_embedding,
             # self.norm_tgt_seq_embedding) , axis=-1 )
             self.binarylogit = tf.reduce_sum(tf.multiply(self.src_seq_embedding, self.tgt_seq_embedding), axis=-1)
+            #print(self.binarylogit.eval())
+            #print(self.src_seq_embedding.eval())
+            #tf.Print(self.tgt_seq_embedding, [self.tgt_seq_embedding], 'self.tgt_seq_embedding')
             # self.binarylogit = tf.Print(self.binarylogit, [self.binarylogit], summarize=6, message='binarylogit')
 
         with tf.variable_scope('training_loss'):

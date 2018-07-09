@@ -157,7 +157,8 @@ def train():
 
   logging.info( "Training Data: %d total positive samples, each epoch need %d steps" % (len(data.rawTrainPosCorpus), epoc_steps ) )
 
-  cfg = tf.ConfigProto(gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5),log_device_placement=False, allow_soft_placement=True)
+  #cfg = tf.ConfigProto(gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=1.0),log_device_placement=False, allow_soft_placement=True)
+  cfg = tf.ConfigProto(log_device_placement=False, allow_soft_placement=True)
   with tf.Session(config=cfg) as sess:
     model = create_model( sess, data.rawnegSetLen, data.vocab_size, False )
 
@@ -170,12 +171,22 @@ def train():
     previous_accuracies = []
     for epoch in range( FLAGS.max_epoc ):
       epoc_start_Time = time.time()
+      
+      for var in tf.trainable_variables():
+        tf.summary.histogram(var.op.name, var)
+      tf.summary.scalar("lr", model.learning_rate.eval())
+      tf.get_collection(tf.GraphKeys.SUMMARIES)
+      # Build the summary operation from the last tower summaries.
+      summary_op_te = tf.summary.merge_all()
+
       for batchId in range( int(epoc_steps) ):
         start_time = time.time()
         source_inputs, tgt_inputs, labels = data.get_train_batch(FLAGS.batch_size)
         model.set_forward_only(False)
         d = model.get_train_feed_dict(source_inputs, tgt_inputs, labels)
-        ops = [model.train, summary_op, model.loss, model.train_acc ]
+        # src = tf.Print(self.src_seq_embedding, [self.src_seq_embedding], 'self.src_seq_embedding')
+        # tgt = tf.Print(self.tgt_seq_embedding, [self.tgt_seq_embedding], 'self.tgt_seq_embedding')
+        ops = [model.train, summary_op_te, model.loss, model.train_acc]
         _, summary, step_loss, step_train_acc = sess.run(ops, feed_dict=d)
         step_time += (time.time() - start_time) / FLAGS.steps_per_checkpoint
         loss += step_loss / FLAGS.steps_per_checkpoint
@@ -187,6 +198,9 @@ def train():
           logging.info("global epoc: %.3f, global step %d, learning rate %.4f step-time:%.2f loss:%.4f train_binary_acc:%.4f " %
                  ( float(model.global_step.eval())/ float(epoc_steps), model.global_step.eval(), model.learning_rate.eval(),
                              step_time, step_loss, train_acc ))
+
+          sw.add_summary(summary, current_step)
+
           checkpoint_path = os.path.join(FLAGS.model_dir, "SSE-LSTM.ckpt")
           acc_sum = tf.Summary(value=[tf.Summary.Value(tag="train_binary_acc", simple_value=train_acc)])
           sw.add_summary(acc_sum, current_step)
