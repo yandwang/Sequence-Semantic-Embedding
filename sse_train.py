@@ -157,8 +157,8 @@ def train():
 
   logging.info( "Training Data: %d total positive samples, each epoch need %d steps" % (len(data.rawTrainPosCorpus), epoc_steps ) )
 
-  #cfg = tf.ConfigProto(gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=1.0),log_device_placement=False, allow_soft_placement=True)
-  cfg = tf.ConfigProto(log_device_placement=False, allow_soft_placement=True)
+  cfg = tf.ConfigProto(gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.2),log_device_placement=False, allow_soft_placement=True)
+  #cfg = tf.ConfigProto(log_device_placement=False, allow_soft_placement=True)
   with tf.Session(config=cfg) as sess:
     model = create_model( sess, data.rawnegSetLen, data.vocab_size, False )
 
