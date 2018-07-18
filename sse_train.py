@@ -65,7 +65,7 @@ tf.app.flags.DEFINE_integer("label_dims", 571, "label_dims of eBay CSA dataset")
 tf.app.flags.DEFINE_float("learning_rate", 0.01, "Learning rate.")
 tf.app.flags.DEFINE_float("learning_rate_decay_factor", 0.99,
                           "Learning rate decays by this much.")
-tf.app.flags.DEFINE_integer("batch_size", 64,
+tf.app.flags.DEFINE_integer("batch_size", 32,
                             "Batch size to use during training(positive pair count based).")
 tf.app.flags.DEFINE_integer("embedding_size", 50, "Size of word embedding vector.")
 tf.app.flags.DEFINE_integer("encoding_size", 80, "Size of sequence encoding vector. Same number of nodes for each model layer.")
@@ -242,7 +242,7 @@ def train():
       logging.info('\n\n\nepoch# %d  took %f hours' % ( epoch , epoc_train_time / (60.0 * 60) ) )
 
       # run task specific evaluation afer each epoch
-      if (FLAGS.task_type not in ['ranking', 'crosslingual']) or ( (epoch+1) % 20 == 0 ):
+      if (FLAGS.task_type not in ['ranking', 'crosslingual']) or ( (epoch+1) % 1 == 0 ):
         model.set_forward_only(True)
         sse_index.createIndexFile( model, data.encoder, os.path.join(FLAGS.model_dir, FLAGS.rawfilename), FLAGS.max_seq_length, os.path.join(FLAGS.model_dir, FLAGS.encodedIndexFile), sess, batchsize=1000 )
         evaluator = sse_evaluator.Evaluator(model, data.rawEvalCorpus, os.path.join(FLAGS.model_dir, FLAGS.encodedIndexFile) , sess)
