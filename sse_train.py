@@ -157,7 +157,7 @@ def train():
 
   logging.info( "Training Data: %d total positive samples, each epoch need %d steps" % (len(data.rawTrainPosCorpus), epoc_steps ) )
 
-  cfg = tf.ConfigProto(gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.2),log_device_placement=False, allow_soft_placement=True)
+  cfg = tf.ConfigProto(gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5),log_device_placement=False, allow_soft_placement=True)
   #cfg = tf.ConfigProto(log_device_placement=False, allow_soft_placement=True)
   with tf.Session(config=cfg) as sess:
     model = create_model( sess, data.rawnegSetLen, data.vocab_size, False )
@@ -242,7 +242,7 @@ def train():
       logging.info('\n\n\nepoch# %d  took %f hours' % ( epoch , epoc_train_time / (60.0 * 60) ) )
 
       # run task specific evaluation afer each epoch
-      if (FLAGS.task_type not in ['ranking', 'crosslingual']) or ( (epoch+1) % 1 == 0 ):
+      if (FLAGS.task_type not in ['ranking', 'crosslingual']) or ( (epoch+1) % 10 == 0 ):
         model.set_forward_only(True)
         sse_index.createIndexFile( model, data.encoder, os.path.join(FLAGS.model_dir, FLAGS.rawfilename), FLAGS.max_seq_length, os.path.join(FLAGS.model_dir, FLAGS.encodedIndexFile), sess, batchsize=1000 )
         evaluator = sse_evaluator.Evaluator(model, data.rawEvalCorpus, os.path.join(FLAGS.model_dir, FLAGS.encodedIndexFile) , sess)
