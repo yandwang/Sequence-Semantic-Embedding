@@ -1,9 +1,9 @@
-device=1
-lr=0.9
+device=0
+lr=0.5
 q=0.2
 gamma=35
 epoc=10
-model_dir='models-ranking/lr_0.9_q_0.2_gamma_35_epoc_5'
+model_dir='models-ranking/lr_0.5_q_0.2_gamma_35_epoc_5'
 #model_dir='models-classification/binary_deephash_baseline_lr_1_q_0.2_gamma_35_epoc_50'
 
 train-classification:
