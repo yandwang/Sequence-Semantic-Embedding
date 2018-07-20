@@ -65,7 +65,7 @@ tf.app.flags.DEFINE_integer("label_dims", 571, "label_dims of eBay CSA dataset")
 tf.app.flags.DEFINE_float("learning_rate", 0.01, "Learning rate.")
 tf.app.flags.DEFINE_float("learning_rate_decay_factor", 0.99,
                           "Learning rate decays by this much.")
-tf.app.flags.DEFINE_integer("batch_size", 32,
+tf.app.flags.DEFINE_integer("batch_size", 64,
                             "Batch size to use during training(positive pair count based).")
 tf.app.flags.DEFINE_integer("embedding_size", 50, "Size of word embedding vector.")
 tf.app.flags.DEFINE_integer("encoding_size", 80, "Size of sequence encoding vector. Same number of nodes for each model layer.")
