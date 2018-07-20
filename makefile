@@ -32,7 +32,7 @@ visualize-qna:
 
 
 train-ranking:
-	python sse_train.py --task_type=ranking --data_dir=rawdata-ranking --model_dir=$(model_dir)  --device=$(device) --learning_rate=$(lr) --embedding_size=30 --encoding_size=64 --max_seq_length=60  --batch_size=32 --max_epoc=$(epoc) --steps_per_checkpoint=10 --q_lambda=$(q) --gamma=$(gamma)
+	python sse_train.py --task_type=ranking --data_dir=rawdata-ranking --model_dir=$(model_dir)  --device=$(device) --learning_rate=$(lr) --embedding_size=30 --encoding_size=64 --max_seq_length=60  --batch_size=32 --max_epoc=$(epoc) --steps_per_checkpoint=200 --q_lambda=$(q) --gamma=$(gamma)
 
 index-ranking:
 	python sse_index.py  --idx_model_dir=models-ranking --idx_rawfilename=targetIDs --idx_encodedIndexFile=targetEncodingIndex.tsv
