@@ -246,8 +246,8 @@ def train():
         model.set_forward_only(True)
         sse_index.createIndexFile( model, data.encoder, os.path.join(FLAGS.model_dir, FLAGS.rawfilename), FLAGS.max_seq_length, os.path.join(FLAGS.model_dir, FLAGS.encodedIndexFile), sess, batchsize=1000 )
         evaluator = sse_evaluator.Evaluator(model, data.rawEvalCorpus, os.path.join(FLAGS.model_dir, FLAGS.encodedIndexFile) , sess)
-        acc1, acc3, acc10 = evaluator.eval()
-        logging.info("epoc#%d, task specific evaluation: top 1/3/10 accuracies: %f / %f / %f \n\n\n" % (epoch, acc1, acc3, acc10) )
+        acc1, acc3, acc10, acc100, acc1000 = evaluator.eval()
+        logging.info("epoc#%d, task specific evaluation: top 1/3/10/100/1000 accuracies: %f / %f / %f / %f / %f \n\n\n\n\n" % (epoch, acc1, acc3, acc10, acc100, acc1000) )
       # Save checkpoint at end of each epoch
       checkpoint_path = os.path.join(FLAGS.model_dir, "SSE-LSTM.ckpt")
       model.save(sess, checkpoint_path + '-epoch-%d'%epoch)

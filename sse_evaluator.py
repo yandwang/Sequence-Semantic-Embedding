@@ -92,7 +92,7 @@ class Evaluator(object):
     self.targetEncodings = np.array( self.targetEncodings )
 
 
-  def eval(self, top_n=(1, 3, 10)):
+  def eval(self, top_n=(1, 3, 10, 100, 1000)):
     """
     Obtains predictions for eval set target sequences and compares them to the
     respective previous labels.
@@ -107,9 +107,6 @@ class Evaluator(object):
         feed_dict = self.model.get_source_encoding_feed_dict(self.srcSeq_batch[batchId * batchSize: (batchId +1) * batchSize])
         sourceEncodings = self.session.run([self.model.src_seq_embedding], feed_dict=feed_dict)
         sourceEncodings = np.vstack(sourceEncodings)
-        sess = tf.Session()
-        #print(sess.run(sourceEncodings))
-        #print(sess.run(self.targetEncodings.T))
         distances = np.dot( sourceEncodings, self.targetEncodings.T)
         rankedScore, rankedIdx = data_utils.getSortedResults(distances)
         batchacc.append( data_utils.computeTopK_TightVersion_accuracy(n, self.eval_Labels[batchId * batchSize: (batchId +1) * batchSize], rankedIdx))

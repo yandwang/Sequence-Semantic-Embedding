@@ -52,7 +52,7 @@ tf.app.flags.DEFINE_string("idx_encodedIndexFile", 'targetEncodingIndex.tsv', "t
 FLAGS = tf.app.flags.FLAGS
 
 
-def createIndexFile( model, encoder, rawfile, max_seq_len, encodeIndexFile, session, batchsize=10000 ):
+def createIndexFile( model, encoder, rawfile, max_seq_len, encodeIndexFile, session, batchsize=500 ):
 
   if not os.path.exists(rawfile):
     print('Error!! Could not find raw target file to be indexed!! :%s' % rawfile)
@@ -97,7 +97,7 @@ def createIndexFile( model, encoder, rawfile, max_seq_len, encodeIndexFile, sess
   outFile.close()
 
 
-def index(model_dir, rawfile, encodeIndexFile, batchsize=10000):
+def index(model_dir, rawfile, encodeIndexFile, batchsize=500):
   if not os.path.exists( model_dir ):
     print('Error! Model folder does not exist!! : %s' % model_dir)
     exit(-1)
