@@ -1,10 +1,10 @@
-device=0
+device=1
 lr=0.7
-q=0.2
-gamma=35
+q=0.1
+gamma=40
 epoc=10
-model_dir='models-ranking/lr_0.7_q_0.2_gamma_35_epoc_10'
-#model_dir='models-classification/binary_deephash_baseline_lr_1_q_0.2_gamma_35_epoc_50'
+model_dir='models-ranking/th_0.1_1.1_lr_0.7_q_0.1_gamma_40_batch_128'
+#model_dir='models-classification/lr_0.9_q_0.1_gamma_35_epoc_20'
 
 train-classification:
 	python sse_train.py --task_type=classification --data_dir=rawdata-classification --model_dir=$(model_dir)   --device=$(device) --learning_rate=$(lr)  --max_epoc=$(epoc) --steps_per_checkpoint=200 --q_lambda=$(q) --gamma=$(gamma)

@@ -280,11 +280,14 @@ class SSEModel(object):
             self.src_seq_embedding = tf.matmul(src_last_output, self.src_M)
 
             # squash the continuous code to be within [−1, 1]
+            src_emd_before = tf.summary.histogram("src_embedding_before", self.src_seq_embedding)
             self.src_seq_embedding = tf.tanh(self.src_seq_embedding)
+            src_emd_after = tf.summary.histogram("src_embedding_after", self.src_seq_embedding)
             
             ## Added by Yandan
             self.img_last_layer_src = self.src_seq_embedding
             self.src_seq_embedding = tf.sign(self.src_seq_embedding)
+            singed_src_emd = tf.summary.histogram("signed_src_embedding", self.src_seq_embedding)
 
         # Build target encoder
         with tf.variable_scope('target_encoder'):
@@ -303,6 +306,7 @@ class SSEModel(object):
             ## Added by Yandan
             self.img_last_layer_tgt = self.tgt_seq_embedding
             self.tgt_seq_embedding = tf.sign(self.tgt_seq_embedding)
+            singed_tgt_emd = tf.summary.histogram("signed_tgt_embedding", self.tgt_seq_embedding)
 
     def _shared_encoder_network(self):
         # config SSE network to be shared encoder mode
@@ -343,6 +347,9 @@ class SSEModel(object):
             # self.binarylogit =  tf.reduce_sum( tf.multiply(self.norm_src_seq_embedding,
             # self.norm_tgt_seq_embedding) , axis=-1 )
             self.binarylogit = tf.reduce_sum(tf.multiply(self.src_seq_embedding, self.tgt_seq_embedding), axis=-1)
+            bin_logit = tf.summary.histogram("binarylogit", self.binarylogit)
+            sigmoid_binary_logit = tf.sigmoid(self.binarylogit)
+            sig_bin_logit = tf.summary.histogram("sigmoid_binarylogit", sigmoid_binary_logit)
             #print(self.binarylogit.eval())
             #print(self.src_seq_embedding.eval())
             #tf.Print(self.tgt_seq_embedding, [self.tgt_seq_embedding], 'self.tgt_seq_embedding')
@@ -392,8 +399,8 @@ class SSEModel(object):
 
             # compute the binary training accuracy
             self.train_acc = tf.reduce_mean(
-                tf.multiply(self._labels, tf.floor(tf.sigmoid(self.binarylogit) + 0.1))) + tf.reduce_mean(
-                tf.multiply(1.0 - self._labels, tf.floor(1.1 - tf.sigmoid(self.binarylogit))))
+                tf.multiply(self._labels, tf.floor(tf.sigmoid(self.binarylogit) + 0.4))) + tf.reduce_mean(
+                tf.multiply(1.0 - self._labels, tf.floor(1.4 - tf.sigmoid(self.binarylogit))))
 
         ########## Testing with Siamese loss with margin ############
         # with tf.variable_scope('training_loss'):
