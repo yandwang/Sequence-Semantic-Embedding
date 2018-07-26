@@ -332,8 +332,11 @@ class SSEModel(object):
     def _def_loss(self):
         # compute src / tgt similarity
         with tf.variable_scope('similarity'):
-            self.norm_src_seq_embedding = tf.nn.l2_normalize(self.img_last_layer_src, dim=-1)
-            self.norm_tgt_seq_embedding = tf.nn.l2_normalize(self.img_last_layer_tgt, dim=-1)
+            self.norm_src_seq_embedding_fp = tf.nn.l2_normalize(self.img_last_layer_src, dim=-1)
+            self.norm_tgt_seq_embedding_fp = tf.nn.l2_normalize(self.img_last_layer_tgt, dim=-1)
+            
+            self.norm_src_seq_embedding =  tf.nn.l2_normalize(self.src_seq_embedding, dim=-1)
+            self.norm_tgt_seq_embedding =  tf.nn.l2_normalize(self.tgt_seq_embedding, dim=-1)
             
             # this similarity tensor is used for prediction, tensor shape is (src_batch_size * target_space_size )
             # self.similarity = tf.matmul( self.norm_src_seq_embedding, self.norm_tgt_seq_embedding, transpose_b=True)
@@ -382,14 +385,14 @@ class SSEModel(object):
             # Cauchy quantization loss
             d_src_1 = tf.square(
                 tf.norm(
-                    tf.subtract(tf.abs(self.norm_src_seq_embedding),
+                    tf.subtract(tf.abs(self.norm_src_seq_embedding_fp),
                                 tf.nn.l2_normalize(
-                                    tf.ones_like(self.norm_src_seq_embedding)))))
+                                    tf.ones_like(self.norm_src_seq_embedding_fp)))))
             d_tgt_1 = tf.square(
                 tf.norm(
-                    tf.subtract(tf.abs(self.norm_tgt_seq_embedding),
+                    tf.subtract(tf.abs(self.norm_tgt_seq_embedding_fp),
                                 tf.nn.l2_normalize(
-                                    tf.ones_like(self.norm_tgt_seq_embedding)))))
+                                    tf.ones_like(self.norm_tgt_seq_embedding_fp)))))
             self.Cauchy_quan_src = tf.reduce_mean(tf.log(tf.add(1.0, tf.div(d_src_1, self.gamma))))
             self.Cauchy_quan_tgt = tf.reduce_mean(tf.log(tf.add(1.0, tf.div(d_tgt_1, self.gamma))))
             self.Cauchy_quan_loss = self.q_lambda *(self.Cauchy_quan_src + self.Cauchy_quan_tgt)
@@ -439,7 +442,7 @@ class SSEModel(object):
         seq_shape = tf.shape(img_last_layer_src)
         K = seq_shape[1]
         sum_all = seq_shape[0]
-        euc_norm = tf.square(tf.norm(self.norm_src_seq_embedding - self.norm_tgt_seq_embedding, ord='euclidean', axis=1))
+        euc_norm = tf.square(tf.norm(self.norm_src_seq_embedding_fp - self.norm_tgt_seq_embedding_fp, ord='euclidean', axis=1))
         d_src_tgt = 0.25*tf.multiply(tf.cast(K, tf.float32), euc_norm)
 
         # compute parts of Cauchy cross-entropy loss
