@@ -1,9 +1,9 @@
 device=1
-lr=0.7
+lr=0.5
 q=0.1
 gamma=40
-epoc=50
-model_dir='models-ranking/th_0.9_1.9_lr_0.7_q_0.1_gamma_40_encode_1024'
+epoc=10
+model_dir='models-ranking/th_0.9_1.9_lr_0.5_q_0.1_gamma_40_encode_1024'
 #model_dir='models-classification/lr_0.9_q_0.1_gamma_35_epoc_20'
 
 train-classification:
