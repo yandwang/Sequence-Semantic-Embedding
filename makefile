@@ -57,7 +57,7 @@ demo-crosslingual:
 
 
 clean:
-	rm *.log
+	#rm *.log
 	rm -rf models*
 	rm *.pyc
 	rm -rf __pycache__

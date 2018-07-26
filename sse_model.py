@@ -337,7 +337,7 @@ class SSEModel(object):
             
             # this similarity tensor is used for prediction, tensor shape is (src_batch_size * target_space_size )
             # self.similarity = tf.matmul( self.norm_src_seq_embedding, self.norm_tgt_seq_embedding, transpose_b=True)
-            self.similarity = tf.matmul(self.src_seq_embedding, self.tgt_seq_embedding, transpose_b=True)
+            self.similarity = tf.matmul(self.norm_src_seq_embedding, self.norm_tgt_seq_embedding, transpose_b=True)
             # self.similarity = tf.Print(self.similarity, [self.similarity], summarize=571, message='similarity')
 
             # self.norm_similarity = tf.matmul( tf.nn.l2_normalize(self.src_seq_embedding, dim=-1),
@@ -346,7 +346,7 @@ class SSEModel(object):
 
             # self.binarylogit =  tf.reduce_sum( tf.multiply(self.norm_src_seq_embedding,
             # self.norm_tgt_seq_embedding) , axis=-1 )
-            self.binarylogit = tf.reduce_sum(tf.multiply(self.src_seq_embedding, self.tgt_seq_embedding), axis=-1)
+            self.binarylogit = tf.reduce_sum(tf.multiply(self.norm_src_seq_embedding, self.norm_tgt_seq_embedding), axis=-1)
             bin_logit = tf.summary.histogram("binarylogit", self.binarylogit)
             sigmoid_binary_logit = tf.sigmoid(self.binarylogit)
             sig_bin_logit = tf.summary.histogram("sigmoid_binarylogit", sigmoid_binary_logit)
@@ -399,8 +399,8 @@ class SSEModel(object):
 
             # compute the binary training accuracy
             self.train_acc = tf.reduce_mean(
-                tf.multiply(self._labels, tf.floor(tf.sigmoid(self.binarylogit) + 0.2))) + tf.reduce_mean(
-                tf.multiply(1.0 - self._labels, tf.floor(1.2 - tf.sigmoid(self.binarylogit))))
+                tf.multiply(self._labels, tf.floor(tf.sigmoid(64.0*self.binarylogit) + 0.2))) + tf.reduce_mean(
+                tf.multiply(1.0 - self._labels, tf.floor(1.2 - tf.sigmoid(64.0*self.binarylogit))))
 
         ########## Testing with Siamese loss with margin ############
         # with tf.variable_scope('training_loss'):
