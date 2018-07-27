@@ -1,9 +1,9 @@
-device=1
-lr=0.5
-q=0.1
-gamma=40
-epoc=10
-model_dir='models-ranking/th_0.9_1.9_lr_0.5_q_0.1_gamma_40_encode_1024'
+device=3
+lr=0.3
+q=0.6
+gamma=50
+epoc=20
+model_dir='models-ranking/th_0.2_1.2_lr_0.7_q_0.6_gamma_50_encode_512'
 #model_dir='models-classification/lr_0.9_q_0.1_gamma_35_epoc_20'
 
 train-classification:
@@ -32,7 +32,7 @@ visualize-qna:
 
 
 train-ranking:
-	python sse_train.py --task_type=ranking --data_dir=rawdata-ranking --model_dir=$(model_dir)  --device=$(device) --learning_rate=$(lr) --embedding_size=30 --encoding_size=1024 --max_seq_length=60  --batch_size=32 --max_epoc=$(epoc) --steps_per_checkpoint=200 --q_lambda=$(q) --gamma=$(gamma)
+	python sse_train.py --task_type=ranking --data_dir=rawdata-ranking --model_dir=$(model_dir)  --device=$(device) --learning_rate=$(lr) --embedding_size=30 --encoding_size=512 --max_seq_length=60  --batch_size=32 --max_epoc=$(epoc) --steps_per_checkpoint=200 --q_lambda=$(q) --gamma=$(gamma)
 
 index-ranking:
 	python sse_index.py  --idx_model_dir=models-ranking --idx_rawfilename=targetIDs --idx_encodedIndexFile=targetEncodingIndex.tsv
