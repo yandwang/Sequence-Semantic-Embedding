@@ -402,8 +402,8 @@ class SSEModel(object):
 
             # compute the binary training accuracy
             self.train_acc = tf.reduce_mean(
-                tf.multiply(self._labels, tf.floor(tf.sigmoid(64.0*self.binarylogit) + 0.2))) + tf.reduce_mean(
-                tf.multiply(1.0 - self._labels, tf.floor(1.2 - tf.sigmoid(64.0*self.binarylogit))))
+                tf.multiply(self._labels, tf.floor(tf.sigmoid(64.0*self.binarylogit) + 0.4))) + tf.reduce_mean(
+                tf.multiply(1.0 - self._labels, tf.floor(1.4 - tf.sigmoid(64.0*self.binarylogit))))
 
         ########## Testing with Siamese loss with margin ############
         # with tf.variable_scope('training_loss'):
